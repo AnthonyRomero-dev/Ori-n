@@ -7,52 +7,18 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m' # Sin color
 
-# Configuración del repositorio
-REPO_OWNER="AnthonyRomero-dev"
-REPO_NAME="Ori-on"
-BRANCH="main"  # Cambia a 'master' si es necesario
+# Configuración
+REPO_URL="https://raw.githubusercontent.com/AnthonyRomero-dev/Ori-on/main"
 SCRIPT_NAME="script.sh"
 
-# URL de verificación
-RAW_URL="https://raw.githubusercontent.com/$REPO_OWNER/$REPO_NAME/$BRANCH/$SCRIPT_NAME"
-GITHUB_URL="https://github.com/$REPO_OWNER/$REPO_NAME"
-
-# Función para verificar la existencia del script
-verify_script_existence() {
-    echo -e "${CYAN}[*] Verificando disponibilidad del script...${NC}"
-    
-    # Intento 1: Verificar con GitHub API
-    if curl -s -I "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/contents/$SCRIPT_NAME" | grep -q "200 OK"; then
-        echo -e "${GREEN}[+] Script encontrado vía API GitHub${NC}"
-        return 0
-    fi
-    
-    # Intento 2: Verificación directa
-    if curl -s -I "$RAW_URL" | grep -q "200 OK"; then
-        echo -e "${GREEN}[+] Script encontrado en URL cruda${NC}"
-        return 0
-    fi
-    
-    # Intento 3: Verificar rama alternativa
-    echo -e "${YELLOW}[!] Probando con rama 'master'...${NC}"
-    if curl -s -I "https://raw.githubusercontent.com/$REPO_OWNER/$REPO_NAME/master/$SCRIPT_NAME" | grep -q "200 OK"; then
-        echo -e "${GREEN}[+] Script encontrado en rama 'master'${NC}"
-        BRANCH="master"
-        RAW_URL="https://raw.githubusercontent.com/$REPO_OWNER/$REPO_NAME/$BRANCH/$SCRIPT_NAME"
-        return 0
-    fi
-    
-    echo -e "${RED}[!] ERROR: Script no encontrado${NC}"
-    echo -e "${YELLOW}Posibles soluciones:"
-    echo "1. Verifica que '$SCRIPT_NAME' exista en la rama $BRANCH"
-    echo "2. Revisa mayúsculas/minúsculas del nombre"
-    echo "3. Si está en subcarpeta, agrega la ruta completa"
-    echo "4. Prueba esta URL en navegador:"
-    echo "   $RAW_URL"
-    echo "5. Visita el repositorio: $GITHUB_URL"
-    echo "6. Si es privado, hazlo público o usa token de acceso${NC}"
+# Función para manejar errores
+handle_error() {
+    echo -e "${RED}[!] Error en la línea $1: $2${NC}"
+    echo -e "${YELLOW}[*] Solución: Verifica tu conexión o reporta el error${NC}"
     exit 1
 }
+
+trap 'handle_error $LINENO "$BASH_COMMAND"' ERR
 
 # Verificar conexión a internet
 check_internet() {
@@ -70,16 +36,38 @@ install_dependencies() {
     echo -e "\n${CYAN}[*] Actualizando paquetes Termux...${NC}"
     echo -e "${YELLOW}(Esto puede tomar 2-5 minutos. Por favor espera)${NC}"
     
-    pkg update -y && echo -e "${GREEN}[+] Paquetes actualizados exitosamente${NC}"
+    # Mostrar progreso en tiempo real
+    pkg update -y | while IFS= read -r line; do
+        echo -e "${YELLOW}[UPDATE] $line${NC}"
+    done
+    
+    echo -e "${GREEN}[+] Paquetes actualizados exitosamente${NC}"
     
     echo -e "\n${CYAN}[*] Instalando dependencias básicas...${NC}"
     for package in git python wget curl; do
         echo -e "${YELLOW}[INSTALL] Instalando $package...${NC}"
-        pkg install -y $package
+        pkg install -y $package 2>&1 | while IFS= read -r line; do
+            echo -e "${YELLOW}[$package] $line${NC}"
+        done
         echo -e "${GREEN}[+] $package instalado${NC}"
     done
     
+    # Verificar instalación
+    if ! command -v git &> /dev/null; then
+        echo -e "${RED}[!] Error: git no se instaló correctamente${NC}"
+        exit 1
+    fi
+    
     echo -e "${GREEN}[+] Todas las dependencias instaladas${NC}"
+    
+    # Instalar dependencias Python si existen
+    if [ -f "requirements.txt" ]; then
+        echo -e "\n${CYAN}[*] Instalando paquetes Python...${NC}"
+        pip install -r requirements.txt | while IFS= read -r line; do
+            echo -e "${YELLOW}[PIP] $line${NC}"
+        done
+        echo -e "${GREEN}[+] Paquetes Python instalados${NC}"
+    fi
 }
 
 # Función principal
@@ -96,23 +84,23 @@ main() {
     echo -e "${YELLOW}Hora: $(date)${NC}\n"
     
     check_internet
-    verify_script_existence
     install_dependencies
     
-    # Descargar y ejecutar el script principal
-    echo -e "\n${CYAN}[*] Descargando script principal...${NC}"
-    if curl -sL -o "main_script.sh" "$RAW_URL"; then
-        echo -e "${GREEN}[+] Descarga exitosa${NC}"
-        chmod +x main_script.sh
-        ./main_script.sh
-    else
-        echo -e "${RED}[!] Error al descargar el script${NC}"
-        echo -e "${YELLOW}Intenta manualmente:"
-        echo "curl -O $RAW_URL"
-        echo "chmod +x $SCRIPT_NAME"
-        echo "./$SCRIPT_NAME"
-        exit 1
-    fi
+    # Tu lógica personalizada aquí
+    echo -e "\n${CYAN}[*] Ejecutando lógica personalizada...${NC}"
+    echo -e "${YELLOW}[+] Hola desde Termux!"
+    echo -e "[+] Usuario: $(whoami)"
+    echo -e "[+] Directorio: $(pwd)"
+    echo -e "[+] Memoria libre: $(free -m | awk '/Mem/{print $4}') MB${NC}"
+    
+    # Ejemplo: Crear archivo de verificación
+    echo "Script ejecutado correctamente el $(date)" > success.txt
+    echo -e "${GREEN}[+] Archivo de verificación creado: success.txt${NC}"
+    
+    echo -e "\n${GREEN}=== Ejecución Completa ===${NC}"
+    echo -e "${CYAN}Por favor revisa los mensajes arriba para verificar"
+    echo -e "que todo se completó correctamente."
+    echo -e "Reporta errores en: ${REPO_URL}${NC}"
 }
 
 main
